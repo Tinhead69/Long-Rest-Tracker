@@ -30,7 +30,13 @@ The download URL points to GitHub's ZIP of the `main` branch, so installations u
 
 ## Use
 
-- **Record Long Rest** selects player-owned `character` actors on the current scene that you own. It records the current world time as the completion time.
+Version **1.0.4** makes manual **Record Long Rest** GM-only in both the clock submenu and tracker window. Players retain **Check Rest Status**, and their completed character-sheet long rests are still recorded automatically.
+
+Version **1.0.3** automatically records completed D&D5e long rests using the system's `dnd5e.restCompleted` hook. Players can use **Long Rest** on their character sheet as usual; when the rest completes, the tracker saves the current world time and sends them a private recording report. No token on the current scene is required. Short rests and cancelled dialogs do not record anything. The GM can disable **Automatically record D&D5e long rests** in Configure Settings. Manual recording remains available.
+
+Recording occurs after any time advancement performed by D&D5e. The tracker itself does not advance time or enforce the cooldown. Rest-modifying modules must emit the standard completion hook to be tracked automatically. Test a sheet long rest and a cancelled rest in your v14 world before campaign use.
+
+- **Record Long Rest** (GM only) selects player-owned `character` actors on the current scene. It records the current world time as the completion time.
 - **Check Rest Status** checks characters on the current scene for which you have Observer permission or higher. Results are whispered only to the user requesting them.
 - **Set Cooldown** is available to the GM; the default is 24 calendar hours. You can also edit the world setting under Configure Settings. Use a finite number greater than or equal to zero.
 
@@ -38,7 +44,7 @@ The module tracks rests only. It does not execute D&D5e rest mechanics, restore 
 
 The `character` actor type follows the original D&D5e script. Other systems must expose the same actor type to appear in the tracker. There is no dependency on a particular D&D5e rest API.
 
-Linked tokens for the same actor appear once. Unlinked token actors are tracked individually by UUID. Players can record only actors they own; the GM can record all qualifying actors. No active scene or no matching actors produces a notification.
+Linked tokens for the same actor appear once. Unlinked token actors are tracked individually by UUID. Completed sheet long rests are automatically recorded for owned characters; only the GM can record rests manually. No active scene or no matching actors produces a notification for scene-based controls.
 
 ## Existing macro data
 
@@ -48,6 +54,12 @@ The old cooldown was stored on an individual macro. Set your desired cooldown on
 
 ## Validation
 
+Version **1.0.5** adds stress-test fixes: per-actor write queues, duplicate completion-result protection, submission-time permission checks, safe handling of malformed selections and missing canvas, a 24-hour fallback for invalid cooldown settings, and separate reporting of chat failures after successful saves.
+
+The automated suite includes 100,000 deterministic timing cases, 500 simulated concurrent character completions, 1,000 repeated deliveries of the same completion result, and 1,000 toolbar rebuilds. These use mocked Foundry APIs: they verify module logic, not real database throughput, DOM rendering, or multiplayer networking. Repeated events with different result objects are treated as separate completed rests. The write queue coordinates only this client; simultaneous rests on the same actor from separate clients still depend on Foundry's update ordering.
+
+Five regression scenarios were reproduced against the original 1.0.4 scripts before verifying the fixes: reordered writes, misleading failure after a successful save with chat failure, stale Observer permission, stale GM cooldown dialog, and an invalid cooldown preventing the tracker from opening.
+
 Run `npm test` and `npm run check` with Node.js. Tests cover eligibility boundaries, zero/negative timestamps, rewound time, invalid records, cooldown validation, HTML escaping, settings registration, actor selection, legacy records, ownership, and private chat reports.
 
 The module has not been run in an actual Foundry instance here. Before using it in a campaign, test in a spare v14 world:
@@ -55,7 +67,7 @@ The module has not been run in an actual Foundry instance here. Before using it 
 1. Add two linked player character tokens and one unlinked character token; open the tracker and confirm the linked actor appears once.
 2. Record a rest and check status. Advance world time by 24 calendar hours and check again; eligibility should change to Yes.
 3. Reload the world and check that records and the cooldown persist.
-4. Check as a player: only accessible actors should be listed and only owned actors can be recorded; reports should remain private.
+4. Check as a player: manual recording and cooldown buttons should be hidden, status checks should work, and completed sheet long rests should still record automatically. Reports should remain private.
 5. Rewind world time before a recorded rest; verify the future-record warning.
 6. Check a character carrying only the old macro flag; verify its original rest is displayed.
 

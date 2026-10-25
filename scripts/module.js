@@ -4,14 +4,17 @@ const ID = "long-rest-tracker";
 const t = (key, data) => data ? game.i18n.format(`LRT.${key}`, data) : game.i18n.localize(`LRT.${key}`);
 const h = (key, data) => esc(t(key, data));
 const REST_FLAG = "lastLongRestTime";
-const cooldown = () => validateCooldown(game.settings.get(ID, "cooldownHours"));
+const cooldown = () => {
+  try { return validateCooldown(game.settings.get(ID, "cooldownHours")); }
+  catch { return 24; } // Keep the tracker accessible so the GM can repair the setting.
+};
 const calendar = () => game.time.calendar;
 const timestamp = time => esc(calendar().format(time, "timestamp"));
 const tDuration = seconds => calendar().format(calendar().difference(Math.max(0, seconds), 0), "duration");
 const duration = seconds => esc(tDuration(seconds));
 
 function actorsOnScene() {
-  const actors = (canvas?.tokens?.placeables ?? []).map(token => token.actor)
+  const actors = (globalThis.canvas?.tokens?.placeables ?? []).map(token => token.actor)
     .filter(actor => actor?.type === "character" && actor.hasPlayerOwner && actor.testUserPermission(game.user, "OBSERVER"));
   return [...new Map(actors.map(actor => [actor.uuid, actor])).values()]
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -26,22 +29,42 @@ async function report(content) {
   return ChatMessage.create({ content: `<div class="long-rest-tracker">${content}</div>`, whisper: [game.user.id] });
 }
 
+const recordingQueues = new Map();
+function saveRest(actor, time) {
+  const key = actor.uuid;
+  const previous = recordingQueues.get(key) ?? Promise.resolve();
+  const next = previous.catch(() => {}).then(async () => {
+    if (!actor.isOwner) throw new Error("Actor ownership was revoked.");
+    await actor.setFlag(ID, REST_FLAG, time);
+  });
+  recordingQueues.set(key, next);
+  return next.finally(() => { if (recordingQueues.get(key) === next) recordingQueues.delete(key); });
+}
+
 async function record(actors) {
   const now = game.time.worldTime;
+  if (!Number.isFinite(now)) throw new Error("Invalid world time.");
   const recorded = [];
   const failed = [];
   for (const actor of actors) {
     if (!actor.isOwner) { failed.push(actor.name); continue; }
     try {
-      await actor.setFlag(ID, REST_FLAG, now);
+      await saveRest(actor, now);
       recorded.push(actor);
     } catch (error) {
       console.error(`${ID} | Failed to record ${actor.uuid}`, error);
       failed.push(actor.name);
     }
   }
-  if (recorded.length) await report(`<h2>${h("Recorded")}</h2><p>${timestamp(now)}</p><ul>${recorded.map(a => `<li>${esc(a.name)}</li>`).join("")}</ul>`);
+  if (recorded.length) {
+    try { await report(`<h2>${h("Recorded")}</h2><p>${timestamp(now)}</p><ul>${recorded.map(a => `<li>${esc(a.name)}</li>`).join("")}</ul>`); }
+    catch (error) {
+      console.error(`${ID} | Recording saved, but report failed`, error);
+      ui.notifications.warn(t("ReportFailed"));
+    }
+  }
   if (failed.length) ui.notifications.warn(t("RecordFailed", { names: failed.join(", ") }));
+  return recorded.length;
 }
 
 async function check(actors) {
@@ -65,6 +88,7 @@ async function check(actors) {
 }
 
 function selectActors(action) {
+  if (action === "record" && !game.user.isGM) return ui.notifications.warn(t("RecordGMOnly"));
   const actors = actorsOnScene().filter(actor => action !== "record" || actor.isOwner);
   if (!actors.length) return ui.notifications.warn(t("NoActors"));
   const label = action === "record" ? t("Record") : t("Check");
@@ -72,7 +96,9 @@ function selectActors(action) {
     window: { title: label }, classes: ["long-rest-tracker"],
     content: `<p>${h("Select")}</p>${actors.map((actor, index) => `<label class="lrt-character"><input type="checkbox" name="actor" value="${index}" checked> ${esc(actor.name)}</label>`).join("")}`,
     buttons: [{ action, label, default: true, callback: async (_event, button) => {
-      const selected = [...button.form.querySelectorAll('input[name="actor"]:checked')].map(input => actors[Number(input.value)]);
+      if (action === "record" && !game.user.isGM) return ui.notifications.warn(t("RecordGMOnly"));
+      const selected = [...new Set([...button.form.querySelectorAll('input[name="actor"]:checked')]
+        .map(input => actors[Number(input.value)]).filter(actor => actor && actor.testUserPermission(game.user, "OBSERVER")))];
       if (!selected.length) return ui.notifications.warn(t("NoSelection"));
       try { await (action === "record" ? record(selected) : check(selected)); }
       catch (error) { console.error(`${ID} |`, error); ui.notifications.error(t("Failed")); }
@@ -86,6 +112,7 @@ function setCooldown() {
     window: { title: t("CooldownTitle") },
     content: `<label>${h("HoursLabel")} <input type="number" name="cooldown" value="${cooldown()}" min="0" step="any" required></label>`,
     buttons: [{ action: "save", label: t("Save"), default: true, callback: async (_event, button) => {
+      if (!game.user.isGM) return ui.notifications.warn(t("GMOnly"));
       try {
         const raw = button.form.elements.cooldown.value.trim();
         const value = validateCooldown(raw === "" ? NaN : Number(raw));
@@ -101,7 +128,7 @@ function openTracker() {
     window: { title: t("Title") },
     content: `<p>${h("WorldTime", { time: calendar().format(game.time.worldTime, "timestamp") })}</p><p><strong>${h("CooldownSummary", { hours: cooldown() })}</strong></p><p>${h("Intro")}</p>`,
     buttons: [
-      { action: "record", label: t("Record"), callback: () => selectActors("record") },
+      ...(game.user.isGM ? [{ action: "record", label: t("Record"), callback: () => selectActors("record") }] : []),
       { action: "check", label: t("Check"), default: true, callback: () => selectActors("check") },
       ...(game.user.isGM ? [{ action: "cooldown", label: t("SetCooldown"), callback: setCooldown }] : []),
       { action: "close", label: t("Close") }
@@ -126,7 +153,7 @@ Hooks.on("getSceneControlButtons", controls => {
     tools: {
       record: {
         name: "record", title: "LRT.Record", icon: "fa-solid fa-bed", order: 0,
-        button: true, visible: true, onChange: toolClick("record", () => selectActors("record"))
+        button: true, visible: game.user.isGM, onChange: toolClick("record", () => selectActors("record"))
       },
       cooldown: {
         name: "cooldown", title: "LRT.SetCooldown", icon: "fa-solid fa-hourglass-half", order: 1,
@@ -140,7 +167,39 @@ Hooks.on("getSceneControlButtons", controls => {
   };
 });
 
+// D&D5e emits this locally after completing updates and time advancement.
+const completedResults = new WeakMap();
+Hooks.on("dnd5e.restCompleted", async (actor, result, config) => {
+  if (game.system.id !== "dnd5e" || !game.settings.get(ID, "autoRecord")) return;
+  const type = config?.type ?? result?.type;
+  if (type ? type !== "long" : result?.longRest !== true) return;
+  if (actor?.type !== "character" || !actor.hasPlayerOwner || !actor.isOwner) return;
+  // A module may forward the same completion result more than once. Share its
+  // pending write and retain successful results without keeping actors alive.
+  const trackable = result && typeof result === "object";
+  let seen;
+  if (trackable) {
+    seen = completedResults.get(result);
+    if (!seen) completedResults.set(result, seen = new Map());
+    if (seen.has(actor.uuid)) return seen.get(actor.uuid);
+  }
+  const recording = record([actor]);
+  if (seen) seen.set(actor.uuid, recording);
+  try {
+    if (!await recording) seen?.delete(actor.uuid);
+  }
+  catch (error) {
+    seen?.delete(actor.uuid);
+    console.error(`${ID} | Automatic rest recording failed`, error);
+    ui.notifications.error(t("AutoFailed"));
+  }
+});
+
 Hooks.once("init", () => {
+  game.settings.register(ID, "autoRecord", {
+    name: "LRT.AutoName", hint: "LRT.AutoHint",
+    scope: "world", config: true, type: Boolean, default: true
+  });
   game.settings.register(ID, "cooldownHours", {
     name: "LRT.SettingName", hint: "LRT.SettingHint",
     scope: "world", config: true, type: Number, default: 24,
