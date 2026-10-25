@@ -1,7 +1,5 @@
 # Long Rest Tracker — Foundry VTT v14
 
-Converts the supplied long-rest macro into a standalone module. No Simple Calendar dependency. Uses `game.time.worldTime` for saved records and `game.time.calendar` for dates, durations, and converting cooldown hours to seconds.
-
 ## Install
 
 1. Close Foundry, then copy the `long-rest-tracker` folder from the release ZIP into your Foundry user data directory's `Data/modules/` folder.
