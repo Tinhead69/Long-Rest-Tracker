@@ -6,7 +6,9 @@ Converts the supplied long-rest macro into a standalone module. No Simple Calend
 
 1. Close Foundry, then copy the `long-rest-tracker` folder from the release ZIP into your Foundry user data directory's `Data/modules/` folder.
 2. Start Foundry v14, open your world, and enable **Long Rest Tracker** in **Manage Modules**.
-3. Open **Configure Settings → Long Rest Tracker → Open Tracker**.
+3. Click the **clock icon** at the bottom of Foundry's left scene-control toolbar. Its submenu contains **Record Long Rest**, **Set Cooldown** (GM only), and **Check Rest Status**.
+
+Version **1.0.1** adds the clock toolbar and submenu. After updating, reload the world to register the new controls. **Configure Settings → Long Rest Tracker → Open Tracker** and existing hotbar macros still work.
 
 You can also create a Script macro containing:
 

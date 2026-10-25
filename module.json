@@ -2,7 +2,7 @@
   "id": "long-rest-tracker",
   "title": "Long Rest Tracker",
   "description": "Record and check character long rests using Foundry's built-in world clock and calendar.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "url": "https://github.com/Tinhead69/Long-Rest-Tracker",
   "manifest": "https://raw.githubusercontent.com/Tinhead69/Long-Rest-Tracker/main/module.json",
   "download": "https://github.com/Tinhead69/Long-Rest-Tracker/archive/refs/heads/main.zip",
