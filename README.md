@@ -10,6 +10,8 @@ Converts the supplied long-rest macro into a standalone module. No Simple Calend
 
 Version **1.0.1** adds the clock toolbar and submenu. After updating, reload the world to register the new controls. **Configure Settings → Long Rest Tracker → Open Tracker** and existing hotbar macros still work.
 
+Version **1.0.2** fixes the clock opening a character selector when activating the toolbar. Dialogs open only when their submenu buttons are clicked.
+
 You can also create a Script macro containing:
 
 ```js

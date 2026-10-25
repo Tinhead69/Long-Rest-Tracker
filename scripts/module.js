@@ -110,24 +110,31 @@ function openTracker() {
 }
 
 // Use v14's native control group so the clock opens the secondary toolbar.
+function toolClick(name, callback) {
+  return event => {
+    // Core can call onChange while activating a group. Only a click on this
+    // submenu tool should open a dialog, including clicks on its child icon.
+    if (event?.target?.closest?.(`[data-tool="${name}"]`)) return callback();
+  };
+}
+
 Hooks.on("getSceneControlButtons", controls => {
   const order = Math.max(-1, ...Object.values(controls).filter(control => control.name !== ID)
     .map(control => Number.isFinite(control.order) ? control.order : 0)) + 1;
   controls[ID] = {
     name: ID, title: "LRT.Title", icon: "fa-solid fa-clock", order, visible: true,
-    activeTool: "check",
     tools: {
       record: {
         name: "record", title: "LRT.Record", icon: "fa-solid fa-bed", order: 0,
-        button: true, visible: true, onChange: () => selectActors("record")
+        button: true, visible: true, onChange: toolClick("record", () => selectActors("record"))
       },
       cooldown: {
         name: "cooldown", title: "LRT.SetCooldown", icon: "fa-solid fa-hourglass-half", order: 1,
-        button: true, visible: game.user.isGM, onChange: setCooldown
+        button: true, visible: game.user.isGM, onChange: toolClick("cooldown", setCooldown)
       },
       check: {
         name: "check", title: "LRT.Check", icon: "fa-solid fa-list-check", order: 2,
-        button: true, visible: true, onChange: () => selectActors("check")
+        button: true, visible: true, onChange: toolClick("check", () => selectActors("check"))
       }
     }
   };
