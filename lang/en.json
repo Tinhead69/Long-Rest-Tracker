@@ -1,5 +1,10 @@
 {
   "LRT.Title": "Long Rest Tracker",
+  "LRT.DayShort": "d",
+  "LRT.HourShort": "h",
+  "LRT.MinuteShort": "m",
+  "LRT.StatusShort": "Eligible?",
+  "LRT.ReadyIn": "Ready in",
   "LRT.ReportFailed": "Long rest records were saved, but the private chat report could not be created.",
   "LRT.AutoName": "Automatically record D&D5e long rests",
   "LRT.AutoHint": "Record the current world time when a player-owned character completes a D&D5e long rest, including from its character sheet. Short rests and cancelled rests are ignored.",

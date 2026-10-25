@@ -30,6 +30,10 @@ The download URL points to GitHub's ZIP of the `main` branch, so installations u
 
 ## Use
 
+Version **1.0.7** reformats chat status reports into three columns: Character, Eligible?, and Ready in. Elapsed time appears beneath each character name; durations use compact calendar-aware units such as `7h 50m`. The summary shows the cooldown without a full date/time line.
+
+Version **1.0.6** simplifies status reports: Last Long Rest shows elapsed time only, without the exact completion date and time. Stored timestamps and cooldown calculations remain unchanged.
+
 Version **1.0.4** makes manual **Record Long Rest** GM-only in both the clock submenu and tracker window. Players retain **Check Rest Status**, and their completed character-sheet long rests are still recorded automatically.
 
 Version **1.0.3** automatically records completed D&D5e long rests using the system's `dnd5e.restCompleted` hook. Players can use **Long Rest** on their character sheet as usual; when the rest completes, the tracker saves the current world time and sends them a private recording report. No token on the current scene is required. Short rests and cancelled dialogs do not record anything. The GM can disable **Automatically record D&D5e long rests** in Configure Settings. Manual recording remains available.

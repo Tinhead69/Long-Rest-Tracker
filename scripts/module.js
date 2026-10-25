@@ -1,4 +1,4 @@
-import { escapeHTML as esc, restStatus, validateCooldown } from "./time.js";
+import { escapeHTML as esc, restStatus, validateCooldown, compactDuration } from "./time.js";
 
 const ID = "long-rest-tracker";
 const t = (key, data) => data ? game.i18n.format(`LRT.${key}`, data) : game.i18n.localize(`LRT.${key}`);
@@ -10,7 +10,11 @@ const cooldown = () => {
 };
 const calendar = () => game.time.calendar;
 const timestamp = time => esc(calendar().format(time, "timestamp"));
-const tDuration = seconds => calendar().format(calendar().difference(Math.max(0, seconds), 0), "duration");
+const tDuration = seconds => compactDuration(seconds, {
+  day: calendar().componentsToTime({ day: 1 }),
+  hour: calendar().componentsToTime({ hour: 1 }),
+  minute: calendar().componentsToTime({ minute: 1 })
+}, { day: t("DayShort"), hour: t("HourShort"), minute: t("MinuteShort") });
 const duration = seconds => esc(tDuration(seconds));
 
 function actorsOnScene() {
@@ -75,16 +79,16 @@ async function check(actors) {
     const status = restStatus(now, last, seconds);
     let when = h("NotRecorded"), eligible = h("Unknown"), remaining = "—";
     if (status.state === "future") {
-      when = `${timestamp(last)} (${h("Future")})`;
-      eligible = h("Rewound");
+      when = h("Future");
+      eligible = `<span title="${h("Rewound")}">${h("Unknown")}</span>`;
     } else if (status.state !== "unknown") {
-      when = `${timestamp(last)}<br>${h("Ago", { duration: tDuration(status.elapsed) })}`;
+      when = h("Ago", { duration: tDuration(status.elapsed) });
       eligible = status.state === "ready" ? `🟢 ${h("Yes")}` : status.remaining <= calendar().componentsToTime({ hour: 4 }) ? `🟡 ${h("No")}` : `🔴 ${h("No")}`;
       if (status.state === "waiting") remaining = duration(status.remaining);
     }
-    return `<tr><td>${esc(actor.name)}</td><td>${when}</td><td>${eligible}</td><td>${remaining}</td></tr>`;
+    return `<tr><td class="lrt-name"><strong>${esc(actor.name)}</strong><span class="lrt-last-rest">${when}</span></td><td><span class="lrt-badge lrt-${status.state}">${eligible}</span></td><td class="lrt-remaining">${remaining}</td></tr>`;
   }).join("");
-  await report(`<h2>${h("Status")}</h2><p>${h("AsOf", { time: calendar().format(now, "timestamp"), hours: cooldown() })}</p><table><thead><tr><th>${h("Character")}</th><th>${h("LastRest")}</th><th>${h("Eligible")}</th><th>${h("Remaining")}</th></tr></thead><tbody>${rows}</tbody></table>`);
+  await report(`<h2>${h("Status")}</h2><p class="lrt-summary">${h("CooldownSummary", { hours: cooldown() })}</p><table class="lrt-status-table"><thead><tr><th>${h("Character")}</th><th>${h("StatusShort")}</th><th>${h("ReadyIn")}</th></tr></thead><tbody>${rows}</tbody></table>`);
 }
 
 function selectActors(action) {

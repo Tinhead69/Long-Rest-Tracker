@@ -1,2 +1,21 @@
 .long-rest-tracker .lrt-character { display: flex; align-items: center; gap: 0.5rem; margin: 0.5rem 0; }
 .long-rest-tracker th, .long-rest-tracker td { padding: 0.4rem; text-align: left; }
+
+.long-rest-tracker h2 { margin: 0 0 0.4rem; font-size: 1.15em; }
+.long-rest-tracker .lrt-summary { margin: 0 0 0.65rem; font-size: 0.9em; opacity: 0.8; }
+.long-rest-tracker .lrt-status-table { width: 100%; table-layout: fixed; border-collapse: collapse; margin: 0; font-size: 0.9em; }
+.long-rest-tracker .lrt-status-table th { background: rgba(0, 0, 0, 0.15); font-weight: 600; padding: 0.55rem 0.35rem; }
+.long-rest-tracker .lrt-status-table th:first-child { width: 48%; }
+.long-rest-tracker .lrt-status-table th:nth-child(2) { width: 23%; }
+.long-rest-tracker .lrt-status-table th:last-child { width: 29%; }
+.long-rest-tracker .lrt-status-table td { padding: 0.65rem 0.35rem; vertical-align: middle; border-bottom: 1px solid rgba(128, 128, 128, 0.25); }
+.long-rest-tracker .lrt-status-table tr { background: transparent; }
+.long-rest-tracker .lrt-status-table tbody tr:nth-child(even) { background: rgba(128, 128, 128, 0.08); }
+.long-rest-tracker .lrt-name { overflow-wrap: anywhere; word-break: normal; }
+.long-rest-tracker .lrt-name strong { display: block; line-height: 1.35; }
+.long-rest-tracker .lrt-last-rest { display: block; margin-top: 0.25rem; font-size: 0.85em; opacity: 0.75; line-height: 1.4; }
+.long-rest-tracker .lrt-badge { display: inline-block; padding: 0.1rem 0.2rem; border-radius: 0.25rem; font-size: 0.9em; line-height: 1.5; }
+.long-rest-tracker .lrt-ready { font-weight: 700; background: rgba(70, 150, 90, 0.15); }
+.long-rest-tracker .lrt-waiting { background: rgba(180, 140, 60, 0.1); }
+.long-rest-tracker .lrt-remaining { font-variant-numeric: tabular-nums; line-height: 1.5; overflow-wrap: normal; }
+.long-rest-tracker .lrt-status-table th { overflow-wrap: normal; word-break: normal; }
