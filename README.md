@@ -16,13 +16,13 @@ game.modules.get("long-rest-tracker").api.open();
 
 Repository: [Tinhead69/Long-Rest-Tracker](https://github.com/Tinhead69/Long-Rest-Tracker).
 
-For Foundry's manifest URL installation, publish a GitHub release tagged `v1.0.0` and attach both the root `module.json` and `dist/long-rest-tracker-v1.0.0.zip` as release assets. The manifest uses the latest release's `module.json` for updates and the version-specific ZIP for downloads. These installation URLs become available after publishing the assets:
+For development installation, upload `module.json`, `scripts/`, `styles/`, and `lang/` to the root of the public repository's `main` branch. No GitHub release is required. In Foundry's Install Module dialog, use this manifest URL:
 
 ```text
-https://github.com/Tinhead69/Long-Rest-Tracker/releases/latest/download/module.json
+https://raw.githubusercontent.com/Tinhead69/Long-Rest-Tracker/main/module.json
 ```
 
-For future releases, update the version and version-specific download URL, rebuild the ZIP, and attach both files to the new release.
+The download URL points to GitHub's ZIP of the `main` branch, so installations use the current development code. If your branch has a different name, change `main` in both URLs in `module.json`. Increment the module's version when you want Foundry to detect an update; the required version field is package metadata and does not require publishing a GitHub release. Branch downloads change as commits are pushed and are not pinned to a particular version.
 
 ## Use
 

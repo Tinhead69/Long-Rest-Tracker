@@ -6,8 +6,27 @@
   "url": "https://github.com/Tinhead69/Long-Rest-Tracker",
   "manifest": "https://raw.githubusercontent.com/Tinhead69/Long-Rest-Tracker/main/module.json",
   "download": "https://github.com/Tinhead69/Long-Rest-Tracker/archive/refs/heads/main.zip",
-  "compatibility": { "minimum": "14", "verified": "14", "maximum": "14" },
-  "authors": [{ "name": "Long Rest Tracker contributors" }],
-  "esmodules": ["scripts/module.js"],
-  "styles": ["styles/tracker.css"]
+  "compatibility": {
+    "minimum": "14",
+    "verified": "14",
+    "maximum": "14"
+  },
+  "authors": [
+    {
+      "name": "Martin Zealey"
+    }
+  ],
+  "esmodules": [
+    "scripts/module.js"
+  ],
+  "styles": [
+    "styles/tracker.css"
+  ],
+  "languages": [
+    {
+      "lang": "en",
+      "name": "English",
+      "path": "lang/en.json"
+    }
+  ]
 }
