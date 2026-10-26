@@ -91,5 +91,9 @@
   "LRT.RestCoordination": "Enable shared rest coordination",
   "LRT.RestCoordinationHint": "Coordinate party short and long rests and their shared clock advances. Turn off to stop group windows and countdowns and let D&D5e handle time normally. Long-rest recording and cooldown checks remain available. Pending group windows are cancelled.",
   "LRT.ClockInvalidTime": "The world clock has an invalid time value. Check the calendar and world clock before advancing a group rest.",
-  "LRT.LongRestRecordsFailed": "The clock advanced, but the shared long-rest timestamp could not be saved for: {names}. Record those rests manually; do not advance the clock again."
+  "LRT.LongRestRecordsFailed": "The clock advanced, but the shared long-rest timestamp could not be saved for: {names}. Record those rests manually; do not advance the clock again.",
+  "LRT.GroupRestTitle": "Group Rest",
+  "LRT.GroupShortTab": "Short rest",
+  "LRT.GroupLongTab": "Long rest",
+  "LRT.EndCountdownNow": "End Countdown Now"
 }

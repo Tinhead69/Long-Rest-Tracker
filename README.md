@@ -28,17 +28,29 @@ The download URL points to GitHub's ZIP of the `main` branch, so installations u
 
 ## Use
 
+### End a countdown early (1.0.16)
+
+The active GM can click **End Countdown Now** on either rest tab. This skips the remaining real-time wait and opens that rest's usual next step, without changing world time or treating unanswered characters as confirmed. For short rests, choose **Advance 1 Hour** or **Leave Clock Unchanged**. For long rests, missing completions still block the eight-hour advance. The ended countdown is saved and remains ended after a GM reconnect; late confirmations continue to update the pending list.
+
+### Shared GM window and confirmation (1.0.15)
+
+Short and long rests now update **one persistent GM window in place**. If both rest types have pending sessions, use the Short rest / Long rest tabs in that window. Participant updates and timer ticks preserve the application and its position.
+
+Opening the first sheet rest dialog starts the countdown, but **does not count as confirming**. The actor remains in the amber awaiting pane until the sheet dialog is confirmed (`dnd5e.shortRest` / `dnd5e.longRest`), or its completed-rest hook arrives. Cancelling the sheet dialog leaves them awaiting. Short-rest confirmations can still update the GM's list after the timeout while the decision remains pending; they do not restart the countdown. The one-hour GM decision and collective eight-hour long-rest advance remain as described below.
+
+Ownership transfers keep the same actor UUID and confirmed status, without duplicating the character. A new owner can confirm a pending rest. Writes queued by a user who loses ownership are discarded, and old completed flags are not reused as a new rest. Characters with no remaining player owner leave the current roster; gaining player ownership, renaming, creating, or deleting a character refreshes the roster in place. Long-rest completion checks use that current roster.
+
 ### Debugging fixes (1.0.14)
 
 Timeout transitions now save a copy of cached settings so other clients receive the update. Reconnecting GMs replay rest starts in chronological order. Clock updates with an uncertain outcome cannot be retried automatically, and invalid timestamps or overflowing durations are rejected before calling a clock API. Long-rest timestamps use one shared finishing time; if one actor update fails, the remaining actors are still saved and the GM is told which records need manual repair.
 
 ### Two-pane rest window (1.0.13)
 
-The compact group window has two stacked panes with colored header bars and character counts. The upper green pane lists characters taking a rest; the lower amber pane lists characters who have not clicked or are not taking a rest. This layout applies to both short and long rests.
+The compact group window has two stacked panes with colored header bars and character counts. The upper green pane lists characters taking a rest; the lower amber pane lists characters who have not confirmed or are not taking a rest. This layout applies to both short and long rests.
 
 ### Compact group window (1.0.12)
 
-The group window shows only **Taking a short rest** (or long rest) and **Awaiting a response**. Clicking the matching rest button on a character sheet immediately moves that character to the taking-rest list, including the character who starts the countdown. There is no additional participation dialog. Cancelling the sheet dialog does not undo the click shown in this list; completing a sheet rest remains a separate requirement for the automatic collective long-rest advance.
+The group window shows only **Taking a short rest** (or long rest) and **Awaiting a response**. As of 1.0.15, opening a sheet dialog leaves the character awaiting; confirming the sheet dialog moves them into the taking-rest list. There is no separate module participation dialog. Completing the sheet rest remains a requirement for the automatic collective long-rest advance.
 
 The window uses a compact 360px width and scoped 12–13px text. Its visible timer updates every second. The short-rest countdown still runs for two minutes before the GM decision; long rests can finish early when everyone completes their sheet rest.
 
@@ -66,9 +78,9 @@ D&D5e 6.0.0 rest hooks and both calendars' public APIs/synchronization modes wer
 
 ### Group long rests (1.0.9)
 
-Opening the first D&D5e long-rest dialog starts a group window with the same two-minute countdown as a short rest. Clicking a sheet rest button marks that character as taking a rest; characters who have not clicked remain awaiting a response. The party roster is captured from player-owned world characters and the initiating token actor when the window begins.
+Opening the first D&D5e long-rest dialog starts a group window with the same two-minute countdown as a short rest. Confirming the sheet rest dialog marks that character as taking a rest; characters who have not confirmed remain awaiting a response. The party roster includes player-owned world characters and participating token actors and refreshes on ownership changes.
 
-**Once every character in that roster completes a long rest on their sheet, the active GM's client automatically advances the clock by eight calendar hours, once for the whole party.** There is no additional GM approval or need to wait out the countdown when everyone has finished. Opening and cancelling a dialog, does not complete a rest. Characters who need no recovery should still complete their sheet's long-rest dialog to join this advance.
+**Once every character in that roster completes a long rest on their sheet, the active GM's client automatically advances the clock by eight calendar hours, once for the whole party.** There is no additional GM approval or need to wait out the countdown when everyone has finished. Opening and cancelling a dialog does not complete a rest. Characters who need no recovery should still complete their sheet's long-rest dialog to join this advance.
 
 If someone has not completed a long rest after two minutes, the GM sees the outstanding characters and time stays unchanged. Players can still complete their sheet rests after the countdown expires; the last required completion triggers the eight-hour advance. Alternatively the GM can end the group window without advancing time. This differs from short rests, whose one-hour advance always requires a GM decision.
 
@@ -78,15 +90,15 @@ Run `node tests/long-rest.test.mjs` for regression coverage of waiting for the l
 
 ### Group short rests (1.0.8)
 
-With D&D5e, opening the first player-owned character's short-rest dialog starts a shared **two-minute real-time countdown**. The active GM sees a compact window with two lists: characters who clicked Short Rest (**Taking a short rest**) and characters who have not (**Awaiting a response**). The initiating character immediately appears in the taking-rest list. There are no extra participation prompts or completed-rest categories. Clicking counts as joining for display purposes even if the sheet dialog is later cancelled; resource recovery still belongs to the system's rest workflow.
+With D&D5e, opening the first player-owned character's short-rest dialog starts a shared **two-minute real-time countdown**. The active GM sees confirmed characters in **Taking a short rest** and unconfirmed characters in **Awaiting / not resting**. The initiator stays awaiting until confirming their sheet dialog. There are no extra module participation prompts or completed-rest categories. Cancelling the dialog leaves the character awaiting; resource recovery belongs to the system's rest workflow.
 
-At two minutes the GM can choose **Advance 1 Hour** or **Leave Clock Unchanged**. An hour uses the active calendar. Unanswered characters stay visible and the GM decides whether the party's hour passes. The countdown does not end early or extend when another character joins. The roster includes player-owned world characters and participating token actors, with linked actors deduplicated. Long rests are tracked in a separate group window.
+At two minutes the GM can choose **Advance 1 Hour** or **Leave Clock Unchanged**. An hour uses the active calendar. Unanswered characters stay visible and the GM decides whether the party's hour passes. The countdown does not end early or extend when another character joins. The roster includes player-owned world characters and participating token actors, with linked actors deduplicated. Long rests use another tab of the same GM window when both rest types are pending.
 
 The module disables D&D5e's automatic time advancement for these short rests so individual rests do not each advance the clock. Other modules or manual clock changes are outside this control. This feature is enabled by default; disable **Coordinate group short rests** in module settings to restore the system's usual behavior. It operates independently of automatic long-rest recording.
 
 An active GM with the module enabled is required to collect events and show the prompt. Rest events are synchronized through owned Actor flags; the shared window is stored in world settings. An existing window resumes after a GM reload or handover. A GM who was offline before the window began can recover recent events when joining within two minutes. The GM can reopen the current countdown or decision from **Open Tracker → Group Short Rest**. If a reload interrupts a clock update, inspect the world clock and choose **Clock Checked — Dismiss This Window** before starting another group window; the module does not automatically retry that advance.
 
-Run `node tests/short-rest.test.mjs` for regression checks, including an asynchronous render, visible countdown updates, and the initiator's immediate taking-rest status. These use mocked Foundry APIs; test with separate player clients and a GM in a spare Foundry v14/D&D5e world before campaign use. Confirm the small two-list window, watch the seconds decrease, click another character's Short Rest button and check that they move between lists, then confirm the GM alone decides whether the hour passes at timeout. Also test closing/reopening the window, disabling coordination, and a GM reload during the countdown.
+Run `node tests/short-rest.test.mjs` for regression checks, including an asynchronous render, visible countdown updates, and the initiator's awaiting status until confirmation. These use mocked Foundry APIs; test with separate player clients and a GM in a spare Foundry v14/D&D5e world before campaign use. Confirm the small two-list window, watch the seconds decrease, open another character's Short Rest dialog and confirm it before checking that they move between lists, then confirm the GM alone decides whether the hour passes at timeout. Also test closing/reopening the window, disabling coordination, and a GM reload during the countdown.
 
 ### Long rests
 
@@ -104,7 +116,7 @@ Recording occurs after any time advancement performed by D&D5e. Recording a long
 - **Check Rest Status** checks characters on the current scene for which you have Observer permission or higher. Results are whispered only to the user requesting them.
 - **Set Cooldown** is available to the GM; the default is 24 calendar hours. You can also edit the world setting under Configure Settings. Use a finite number greater than or equal to zero.
 
-The module does not execute D&D5e rest mechanics, restore resources, or enforce rest restrictions. World time can be advanced through Foundry's calendar/time controls the GM-approved group short-rest prompt, or the collective eight-hour long-rest advance; run a fresh status check to see updated results. A new record replaces the previous completion time even when the cooldown has not elapsed, matching the original macro.
+The module does not execute D&D5e rest mechanics, restore resources, or enforce rest restrictions. World time can be advanced through Foundry's calendar/time controls, the GM-approved group short-rest prompt, or the collective eight-hour long-rest advance; run a fresh status check to see updated results. A new record replaces the previous completion time even when the cooldown has not elapsed, matching the original macro.
 
 The `character` actor type follows the original D&D5e script. Other systems must expose the same actor type to appear in the tracker. There is no dependency on a particular D&D5e rest API.
 
@@ -125,9 +137,9 @@ npm test
 npm run check
 ```
 
-The current suite runs 16 tests, including calendar integrations, invalid clock values, rest event collection, visible timer updates with an asynchronous dialog mock, duplicate completion events, permissions, cancelled windows, the master switch, late long rests, failed clock updates, and partial timestamp-saving failures. These use mocked Foundry APIs; they do not establish real database, multiplayer, or system/theme compatibility.
+The current suite runs 18 tests, including calendar integrations, invalid clock values, rest event collection, visible timer updates with an asynchronous dialog mock, duplicate completion events, permissions, cancelled windows, the master switch, late long rests, failed clock updates, and partial timestamp-saving failures. These use mocked Foundry APIs; they do not establish real database, multiplayer, or system/theme compatibility.
 
-An additional browser check renders the actual module HTML and CSS in Chromium with simulated Foundry services. It verifies both panes, sizes and font rules, the live countdown, participant updates, cached-setting broadcasts, a single clock advance, reconnect ordering, dismissal, and the master switch. Run `npm run test:browser` when Playwright and Chromium are available. The browser executable defaults to `/usr/bin/chromium`; set `CHROMIUM_PATH` to use another location. Playwright is an optional test tool and is not needed by the module or the Node tests. For an isolated install, run `npm install --prefix /tmp/lrt-browser-tools --no-package-lock --no-save playwright`, then `NODE_PATH=/tmp/lrt-browser-tools/node_modules CHROMIUM_PATH=/path/to/chromium npm run test:browser`.
+An additional browser check renders the actual module HTML and CSS in Chromium with simulated Foundry services. It verifies both panes, sizes and font rules, the live countdown, participant confirmations, one persistent window with short/long tabs, ownership changes, cached-setting broadcasts, a single clock advance, reconnect ordering, dismissal, and the master switch. Run `npm run test:browser` when Playwright and Chromium are available. The browser executable defaults to `/usr/bin/chromium`; set `CHROMIUM_PATH` to use another location. Playwright is an optional test tool and is not needed by the module or the Node tests. For an isolated install, run `npm install --prefix /tmp/lrt-browser-tools --no-package-lock --no-save playwright`, then `NODE_PATH=/tmp/lrt-browser-tools/node_modules CHROMIUM_PATH=/path/to/chromium npm run test:browser`.
 
 The module has not been run in an actual Foundry instance here. Before using it in a campaign, test in a spare v14 world:
 
