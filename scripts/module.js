@@ -1,6 +1,10 @@
 import { escapeHTML as esc, restStatus, validateCooldown, compactDuration } from "./time.js";
+import { calendarUnits, hoursToSeconds, formatTimestamp } from "./clock.js";
+import { installShortRestTracking } from "./short-rest.js";
 
 const ID = "long-rest-tracker";
+const shortRests = installShortRestTracking();
+const longRests = installShortRestTracking({type: "long", hours: 8});
 const t = (key, data) => data ? game.i18n.format(`LRT.${key}`, data) : game.i18n.localize(`LRT.${key}`);
 const h = (key, data) => esc(t(key, data));
 const REST_FLAG = "lastLongRestTime";
@@ -8,13 +12,8 @@ const cooldown = () => {
   try { return validateCooldown(game.settings.get(ID, "cooldownHours")); }
   catch { return 24; } // Keep the tracker accessible so the GM can repair the setting.
 };
-const calendar = () => game.time.calendar;
-const timestamp = time => esc(calendar().format(time, "timestamp"));
-const tDuration = seconds => compactDuration(seconds, {
-  day: calendar().componentsToTime({ day: 1 }),
-  hour: calendar().componentsToTime({ hour: 1 }),
-  minute: calendar().componentsToTime({ minute: 1 })
-}, { day: t("DayShort"), hour: t("HourShort"), minute: t("MinuteShort") });
+const timestamp = time => esc(formatTimestamp(time));
+const tDuration = seconds => compactDuration(seconds, calendarUnits(), { day: t("DayShort"), hour: t("HourShort"), minute: t("MinuteShort") });
 const duration = seconds => esc(tDuration(seconds));
 
 function actorsOnScene() {
@@ -73,7 +72,7 @@ async function record(actors) {
 
 async function check(actors) {
   const now = game.time.worldTime;
-  const seconds = calendar().componentsToTime({ hour: cooldown() });
+  const seconds = hoursToSeconds(cooldown());
   const rows = actors.map(actor => {
     const last = lastRest(actor);
     const status = restStatus(now, last, seconds);
@@ -83,7 +82,7 @@ async function check(actors) {
       eligible = `<span title="${h("Rewound")}">${h("Unknown")}</span>`;
     } else if (status.state !== "unknown") {
       when = h("Ago", { duration: tDuration(status.elapsed) });
-      eligible = status.state === "ready" ? `🟢 ${h("Yes")}` : status.remaining <= calendar().componentsToTime({ hour: 4 }) ? `🟡 ${h("No")}` : `🔴 ${h("No")}`;
+      eligible = status.state === "ready" ? `🟢 ${h("Yes")}` : status.remaining <= hoursToSeconds(4) ? `🟡 ${h("No")}` : `🔴 ${h("No")}`;
       if (status.state === "waiting") remaining = duration(status.remaining);
     }
     return `<tr><td class="lrt-name"><strong>${esc(actor.name)}</strong><span class="lrt-last-rest">${when}</span></td><td><span class="lrt-badge lrt-${status.state}">${eligible}</span></td><td class="lrt-remaining">${remaining}</td></tr>`;
@@ -130,10 +129,12 @@ function setCooldown() {
 function openTracker() {
   return new foundry.applications.api.DialogV2({
     window: { title: t("Title") },
-    content: `<p>${h("WorldTime", { time: calendar().format(game.time.worldTime, "timestamp") })}</p><p><strong>${h("CooldownSummary", { hours: cooldown() })}</strong></p><p>${h("Intro")}</p>`,
+    content: `<p>${h("WorldTime", { time: formatTimestamp(game.time.worldTime) })}</p><p><strong>${h("CooldownSummary", { hours: cooldown() })}</strong></p><p>${h("Intro")}</p>`,
     buttons: [
       ...(game.user.isGM ? [{ action: "record", label: t("Record"), callback: () => selectActors("record") }] : []),
       { action: "check", label: t("Check"), default: true, callback: () => selectActors("check") },
+      ...(game.settings.get(ID, "restCoordination") && game.settings.get(ID, "groupShortRest") ? [{ action: "shortRest", label: t("ShortRestTitle"), callback: () => shortRests.refresh() }] : []),
+      ...(game.settings.get(ID, "restCoordination") && game.settings.get(ID, "groupLongRest") ? [{ action: "longRest", label: t("LongRestTitle"), callback: () => longRests.refresh() }] : []),
       ...(game.user.isGM ? [{ action: "cooldown", label: t("SetCooldown"), callback: setCooldown }] : []),
       { action: "close", label: t("Close") }
     ]
@@ -174,10 +175,11 @@ Hooks.on("getSceneControlButtons", controls => {
 // D&D5e emits this locally after completing updates and time advancement.
 const completedResults = new WeakMap();
 Hooks.on("dnd5e.restCompleted", async (actor, result, config) => {
-  if (game.system.id !== "dnd5e" || !game.settings.get(ID, "autoRecord")) return;
+  if (game.system.id !== "dnd5e") return;
   const type = config?.type ?? result?.type;
   if (type ? type !== "long" : result?.longRest !== true) return;
   if (actor?.type !== "character" || !actor.hasPlayerOwner || !actor.isOwner) return;
+  if (!game.settings.get(ID, "autoRecord")) { longRests.completed(actor, result, config); return; }
   // A module may forward the same completion result more than once. Share its
   // pending write and retain successful results without keeping actors alive.
   const trackable = result && typeof result === "object";
@@ -191,6 +193,7 @@ Hooks.on("dnd5e.restCompleted", async (actor, result, config) => {
   if (seen) seen.set(actor.uuid, recording);
   try {
     if (!await recording) seen?.delete(actor.uuid);
+    longRests.completed(actor, result, config);
   }
   catch (error) {
     seen?.delete(actor.uuid);
@@ -200,6 +203,30 @@ Hooks.on("dnd5e.restCompleted", async (actor, result, config) => {
 });
 
 Hooks.once("init", () => {
+  game.settings.register(ID, "restCoordination", {
+    name: "LRT.RestCoordination", hint: "LRT.RestCoordinationHint", scope: "world", config: true,
+    type: Boolean, default: true, onChange: () => { void shortRests.changed(); void longRests.changed(); }
+  });
+  game.settings.register(ID, "clockSource", {
+    name: "LRT.ClockSource", hint: "LRT.ClockSourceHint", scope: "world", config: true, type: String, default: "auto",
+    choices: {auto: "LRT.ClockAuto", native: "LRT.ClockNative", "foundryvtt-simple-calendar": "Simple Calendar", "foundryvtt-simple-calendar-reborn": "Simple Calendar Reborn"}
+  });
+  game.settings.register(ID, "groupLongRest", {
+    name: "LRT.LongRestSetting", hint: "LRT.LongRestHint", scope: "world", config: true,
+    type: Boolean, default: true, onChange: () => { void longRests.changed(); }
+  });
+  game.settings.register(ID, "longRestSession", {
+    scope: "world", config: false, type: Object, default: {},
+    onChange: () => { void longRests.changed(); }
+  });
+  game.settings.register(ID, "groupShortRest", {
+    name: "LRT.ShortRestSetting", hint: "LRT.ShortRestHint", scope: "world", config: true,
+    type: Boolean, default: true, onChange: () => { void shortRests.changed(); }
+  });
+  game.settings.register(ID, "shortRestSession", {
+    scope: "world", config: false, type: Object, default: {},
+    onChange: () => { void shortRests.changed(); }
+  });
   game.settings.register(ID, "autoRecord", {
     name: "LRT.AutoName", hint: "LRT.AutoHint",
     scope: "world", config: true, type: Boolean, default: true
