@@ -20,14 +20,10 @@ export function collectShortRest(session, event, now = Date.now(), waitForAll = 
   return session;
 }
 
-export function shortRestChoices(current, actors, includeLate = false) {
-  const completed = Object.values(current.events).filter(event => event.completedAt != null && (includeLate || event.completedAt <= current.deadline));
-  const completedIds = new Set(completed.map(event => event.uuid));
-  const choices = {resting: [], notResting: [], unanswered: [], completed: completed.map(event => event.name)};
+export function shortRestChoices(current, actors) {
+  const choices = {resting: [], unanswered: []};
   for (const [uuid, name] of actors) {
-    const response = current.responses?.[uuid];
-    if (completedIds.has(uuid) || response?.resting === true) choices.resting.push(name);
-    else if (response?.resting === false) choices.notResting.push(name);
+    if (current.events[uuid]) choices.resting.push(name);
     else choices.unanswered.push(name);
   }
   return choices;
@@ -35,12 +31,11 @@ export function shortRestChoices(current, actors, includeLate = false) {
 
 export function installShortRestTracking({type = "short", hours = 1} = {}) {
   const isLong = type === "long";
-  const FLAG = `${type}RestEvent`, RESPONSE = `${type}RestResponse`;
+  const FLAG = `${type}RestEvent`;
   const sessionKey = `${type}RestSession`, enabledKey = isLong ? "groupLongRest" : "groupShortRest";
   const t = (key, data) => localize(isLong ? key.replace(/^ShortRest/, "LongRest") : key, data);
   let timer, dialog, processing = Promise.resolve();
   const pending = new Map();
-  const invitations = new Map();
   const localEvents = new Map();
   const completedResults = new WeakMap();
   const enabled = () => game.system.id === "dnd5e" && game.settings.get(ID, "restCoordination") && game.settings.get(ID, enabledKey);
@@ -48,12 +43,12 @@ export function installShortRestTracking({type = "short", hours = 1} = {}) {
   const eligible = actor => actor?.type === "character" && actor.hasPlayerOwner;
   const session = () => {
     const value = game.settings.get(ID, sessionKey);
-    return value?.id ? value : null;
+    return value?.id ? foundry.utils.deepClone(value) : null;
   };
   const save = value => game.settings.set(ID, sessionKey, value);
   const enqueue = task => {
     processing = processing.then(task).catch(error => {
-      console.error(`${ID} | Group short rest failed`, error);
+      console.error(`${ID} | Group ${type} rest failed`, error);
       ui.notifications.error(error.userMessage ?? t("ShortRestFailed"));
     });
     return processing;
@@ -66,7 +61,7 @@ export function installShortRestTracking({type = "short", hours = 1} = {}) {
     const next = previous.catch(() => {}).then(() => actor.setFlag(ID, flag, event));
     pending.set(actor.uuid, next);
     void next.catch(error => {
-      console.error(`${ID} | Could not publish short rest`, error);
+      console.error(`${ID} | Could not publish ${type} rest`, error);
       ui.notifications.error(error.userMessage ?? t("ShortRestFailed"));
     }).finally(() => { if (pending.get(actor.uuid) === next) pending.delete(actor.uuid); });
     return next;
@@ -80,7 +75,7 @@ export function installShortRestTracking({type = "short", hours = 1} = {}) {
       || (value.completedAt != null && (!Number.isFinite(value.completedAt) || value.completedAt < value.startedAt))) return;
     const event = {id: value.id, uuid: actor.uuid, name: actor.name, startedAt: value.startedAt,
       completedAt: value.completedAt ?? null};
-    const current = foundry.utils.deepClone(session());
+    const current = session();
     const updated = collectShortRest(current, event, Date.now(), isLong);
     if (updated && isLong && !updated.roster) updated.roster = roster(updated);
     if (!updated) return;
@@ -88,61 +83,10 @@ export function installShortRestTracking({type = "short", hours = 1} = {}) {
     await refresh();
   }
 
-  async function receiveResponse(actor) {
-    if (!enabled() || !isCoordinator() || !eligible(actor)) return;
-    const value = actor.getFlag(ID, RESPONSE), current = foundry.utils.deepClone(session());
-    if (!current || !["collecting", "awaiting"].includes(current.status) || value?.sessionId !== current.id
-      || typeof value.resting !== "boolean" || !Number.isFinite(value.at)
-      || value.at < current.startedAt || value.at > current.deadline || value.at > Date.now() + 5000) return;
-    current.responses ??= {};
-    const previous = current.responses[actor.uuid];
-    if (previous?.at > value.at) return;
-    current.responses[actor.uuid] = {resting: value.resting, at: value.at, name: actor.name};
-    await save(current);
-    await refresh();
-  }
-
-  async function requestChoices(reopen = false) {
-    const current = session();
-    for (const [uuid, invitation] of invitations) {
-      if (!enabled() || current?.id !== invitation.sessionId || current.status !== "collecting" || Date.now() >= current.deadline || current.responses?.[uuid]
-        || current.events?.[uuid]?.completedAt != null) {
-        await invitation.dialog.close();
-        invitations.delete(uuid);
-      }
-    }
-    if (!enabled() || current?.status !== "collecting" || Date.now() >= current.deadline) return;
-    const actors = game.actors.filter(actor => eligible(actor) && actor.isOwner
-      && (!game.user.isGM || game.user.character?.uuid === actor.uuid));
-    for (const actor of actors) {
-      if (current.events?.[actor.uuid]?.completedAt != null) continue;
-      if (!reopen && (invitations.has(actor.uuid) || current.responses?.[actor.uuid])) continue;
-      if (invitations.has(actor.uuid)) await invitations.get(actor.uuid).dialog.close();
-      const respond = async resting => {
-        const latest = session();
-        if (!enabled() || !actor.isOwner || latest?.id !== current.id || latest.status !== "collecting" || Date.now() >= latest.deadline) {
-          ui.notifications.warn(t("ShortRestResponseExpired"));
-          return;
-        }
-        await publish(actor, {sessionId: current.id, resting, at: Date.now()}, RESPONSE);
-      };
-      const choiceDialog = new foundry.applications.api.DialogV2({
-        window: {title: t("ShortRestTitle")},
-        content: `<p>${esc(t("ShortRestInvitation", {name: actor.name}))}</p><p>${esc(t("ShortRestChoiceHint"))}</p>`,
-        buttons: [
-          {action: "resting", label: t("ShortRestYes"), callback: () => respond(true)},
-          {action: "notResting", label: t("ShortRestNo"), callback: () => respond(false)}
-        ]
-      }).render({force: true});
-      invitations.set(actor.uuid, {sessionId: current.id, dialog: choiceDialog});
-    }
-  }
-
   function roster(current) {
     if (current.roster) return current.roster;
     const actors = new Map(game.actors.filter(eligible).map(actor => [actor.uuid, actor.name]));
     for (const event of Object.values(current.events)) actors.set(event.uuid, event.name);
-    for (const [uuid, response] of Object.entries(current.responses ?? {})) if (!actors.has(uuid)) actors.set(uuid, response.name);
     return [...actors].sort((a, b) => a[1].localeCompare(b[1]));
   }
 
@@ -150,16 +94,18 @@ export function installShortRestTracking({type = "short", hours = 1} = {}) {
     clearTimeout(timer);
     if (!enabled() || !isCoordinator()) { if (dialog) await dialog.close(); dialog = null; return; }
     const current = session();
-    if (!current || current.status === "done") return;
+    if (!current || current.status === "done") { if (dialog) await dialog.close(); dialog = null; return; }
     if (current.status === "advancing") {
       if (dialog) await dialog.close();
       dialog = new foundry.applications.api.DialogV2({
+        classes: ["long-rest-tracker", "lrt-group-rest"], position: {width: 360, height: "auto"},
         window: {title: t("ShortRestTitle")}, content: `<p>${esc(t("ShortRestUncertain"))}</p>`,
         buttons: [{action: "resolve", label: t("ShortRestResolve"), callback: () => enqueue(async () => {
           const latest = session();
           if (isCoordinator() && latest?.id === current.id && latest.status === "advancing") await save({...latest, status: "done"});
         })}]
-      }).render({force: true});
+      });
+      await dialog.render({force: true});
       return;
     }
     if (isLong) {
@@ -175,26 +121,36 @@ export function installShortRestTracking({type = "short", hours = 1} = {}) {
       current.status = "awaiting";
       await save(current);
     }
-    const choices = shortRestChoices(current, roster(current), isLong);
-    const list = items => `<ul>${items.map(name => `<li>${esc(name)}</li>`).join("") || `<li>${esc(t("ShortRestNone"))}</li>`}</ul>`;
-    const content = `${remaining ? `<p data-lrt-countdown>${esc(t("ShortRestCountdown", {seconds: remaining}))}</p>` : `<p>${esc(t("ShortRestQuestion"))}</p>`}
-      <h3>${esc(t("ShortRestYes"))}</h3>${list(choices.resting)}
-      <h3>${esc(t("ShortRestNo"))}</h3>${list(choices.notResting)}
-      <h3>${esc(t("ShortRestUnanswered"))}</h3>${list(choices.unanswered)}
-      <h3>${esc(t("ShortRestCompleted"))}</h3>${list(choices.completed)}`;
+    const choices = shortRestChoices(current, roster(current));
+    const list = items => `<ul>${items.map(name => `<li>${esc(name)}</li>`).join("") || `<li class="lrt-group-empty">${esc(t("ShortRestNone"))}</li>`}</ul>`;
+    const content = `<div class="lrt-group-body">
+      <p class="lrt-group-timer" role="timer">${remaining ? esc(t("ShortRestCountdown", {seconds: remaining})) : esc(t("ShortRestQuestion"))}</p>
+      <section class="lrt-group-pane lrt-group-taking">
+        <div class="lrt-group-pane-header"><div class="lrt-group-label" role="heading" aria-level="2">${esc(t("ShortRestYes"))}</div><span class="lrt-group-count">${choices.resting.length}</span></div>
+        ${list(choices.resting)}
+      </section>
+      <section class="lrt-group-pane lrt-group-pending">
+        <div class="lrt-group-pane-header"><div class="lrt-group-label" role="heading" aria-level="2">${esc(t("ShortRestUnanswered"))}</div><span class="lrt-group-count">${choices.unanswered.length}</span></div>
+        ${list(choices.unanswered)}
+      </section>
+    </div>`;
     if (dialog) await dialog.close();
     dialog = new foundry.applications.api.DialogV2({
+      classes: ["long-rest-tracker", "lrt-group-rest"], position: {width: 360, height: "auto"},
       window: {title: t("ShortRestTitle")}, content,
       buttons: remaining ? [{action: "close", label: t("Close")} ] : [
         ...(!isLong || roster(current).every(([uuid]) => current.events[uuid]?.completedAt != null) ? [{action: "advance", label: t("ShortRestAdvance"), callback: () => enqueue(() => finish(current.id, true))}] : []),
         {action: "skip", label: t("ShortRestSkip"), default: true, callback: () => enqueue(() => finish(current.id, false))}
       ]
-    }).render({force: true});
+    });
+    // ApplicationV2.render is asynchronous. Retain the application, not its
+    // rendering Promise, so updates can reach its element and close it correctly.
+    await dialog.render({force: true});
     if (remaining) {
       const tick = () => {
         if (!enabled() || !isCoordinator()) { void enqueue(refresh); return; }
         const seconds = Math.max(0, Math.ceil((current.deadline - Date.now()) / 1000));
-        const label = dialog?.element?.querySelector("[data-lrt-countdown]");
+        const label = dialog?.element?.querySelector(".lrt-group-timer");
         if (label) label.textContent = t("ShortRestCountdown", {seconds});
         if (!seconds) void enqueue(refresh);
         else timer = setTimeout(tick, 1000);
@@ -211,22 +167,41 @@ export function installShortRestTracking({type = "short", hours = 1} = {}) {
     const advanceClock = prepareClockAdvance(hours);
     // Persist the claim before advancing so another GM/reload cannot repeat it.
     await save({...current, status: "advancing"});
+    let beforeAdvance;
     try {
       if (!enabled() || !isCoordinator()) return;
+      beforeAdvance = game.time.worldTime;
       await advanceClock();
     } catch (error) {
-      await save({...current, status: error.clockMayHaveAdvanced ? "advancing" : "awaiting", advanceFailed: true});
+      // A rejected request may already have changed the authoritative clock.
+      // Never offer a second advance when that outcome is uncertain.
+      const uncertain = error?.clockMayHaveAdvanced || game.time.worldTime !== beforeAdvance;
+      await save({...current, status: uncertain ? "advancing" : "awaiting", advanceFailed: true});
       await refresh();
+      if (uncertain) {
+        const failure = new Error(t("ShortRestUncertain"));
+        failure.userMessage = failure.message;
+        throw failure;
+      }
       throw error;
     }
+    const finishedAt = game.time.worldTime;
     await save({...current, status: "done"});
     if (isLong && game.settings.get(ID, "autoRecord")) {
       // Completion events are published after the existing recording write finishes.
       // Stamp the end of the shared eight-hour rest after advancing the clock.
-      for (const [uuid] of roster(current)) {
-        const actor = game.actors.find(actor => actor.uuid === uuid) ?? await fromUuid(uuid);
-        if (actor) await actor.setFlag(ID, "lastLongRestTime", game.time.worldTime);
+      const failed = [];
+      for (const [uuid, name] of roster(current)) {
+        try {
+          const actor = game.actors.find(actor => actor.uuid === uuid) ?? await fromUuid(uuid);
+          if (!actor) throw new Error(`Actor no longer exists: ${uuid}`);
+          await actor.setFlag(ID, "lastLongRestTime", finishedAt);
+        } catch (error) {
+          console.error(`${ID} | Clock advanced but rest timestamp was not saved for ${uuid}`, error);
+          failed.push(name);
+        }
       }
+      if (failed.length) ui.notifications.warn(t("ShortRestRecordsFailed", {names: failed.join(", ")}));
     }
     ui.notifications.info(t("ShortRestAdvanced"));
   }
@@ -260,18 +235,17 @@ export function installShortRestTracking({type = "short", hours = 1} = {}) {
   Hooks.on("updateActor", (actor, changes) => {
     const changed = flag => foundry.utils.hasProperty(changes, `flags.${ID}.${flag}`) || Object.hasOwn(changes, `flags.${ID}.${flag}`);
     if (changed(FLAG)) void enqueue(() => receive(actor));
-    if (changed(RESPONSE)) void enqueue(() => receiveResponse(actor));
   });
   // Take over a persisted window when the designated GM changes or reconnects.
   Hooks.on("updateUser", () => enqueue(refresh));
   const restore = () => enqueue(async () => {
     if (enabled() && isCoordinator()) {
-      for (const actor of game.actors) {
-        if (actor.getFlag(ID, FLAG)) await receive(actor);
-        if (actor.getFlag(ID, RESPONSE)) await receiveResponse(actor);
-      }
+      // Replay in start order: world Actor collection order is unrelated to
+      // which character opened the first rest dialog while this GM was offline.
+      const actors = game.actors.filter(actor => eligible(actor) && Number.isFinite(actor.getFlag(ID, FLAG)?.startedAt))
+        .sort((a, b) => a.getFlag(ID, FLAG).startedAt - b.getFlag(ID, FLAG).startedAt);
+      for (const actor of actors) await receive(actor);
     }
-    await requestChoices();
     await refresh();
   });
   Hooks.on("userConnected", restore);
@@ -284,9 +258,8 @@ export function installShortRestTracking({type = "short", hours = 1} = {}) {
         const current = session();
         if (isCoordinator() && ["collecting", "awaiting"].includes(current?.status)) await save({...current, status: "done"});
       }
-      await requestChoices();
       await refresh();
     }),
-    refresh: () => enqueue(async () => { await requestChoices(true); await refresh(); })
+    refresh: () => enqueue(refresh)
   };
 }

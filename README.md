@@ -28,9 +28,23 @@ The download URL points to GitHub's ZIP of the `main` branch, so installations u
 
 ## Use
 
+### Debugging fixes (1.0.14)
+
+Timeout transitions now save a copy of cached settings so other clients receive the update. Reconnecting GMs replay rest starts in chronological order. Clock updates with an uncertain outcome cannot be retried automatically, and invalid timestamps or overflowing durations are rejected before calling a clock API. Long-rest timestamps use one shared finishing time; if one actor update fails, the remaining actors are still saved and the GM is told which records need manual repair.
+
+### Two-pane rest window (1.0.13)
+
+The compact group window has two stacked panes with colored header bars and character counts. The upper green pane lists characters taking a rest; the lower amber pane lists characters who have not clicked or are not taking a rest. This layout applies to both short and long rests.
+
+### Compact group window (1.0.12)
+
+The group window shows only **Taking a short rest** (or long rest) and **Awaiting a response**. Clicking the matching rest button on a character sheet immediately moves that character to the taking-rest list, including the character who starts the countdown. There is no additional participation dialog. Cancelling the sheet dialog does not undo the click shown in this list; completing a sheet rest remains a separate requirement for the automatic collective long-rest advance.
+
+The window uses a compact 360px width and scoped 12–13px text. Its visible timer updates every second. The short-rest countdown still runs for two minutes before the GM decision; long rests can finish early when everyone completes their sheet rest.
+
 ### Enable or disable shared rests (1.0.11)
 
-The GM can toggle **Configure Settings → Long Rest Tracker → Enable shared rest coordination**. It is on by default. Turning it off stops party confirmation dialogs, countdowns, and shared clock advances, cancels pending group windows, and allows D&D5e to handle time normally. Long-rest recording and cooldown checks remain available. Re-enabling starts with new group windows rather than resuming a cancelled one. An advance already submitted to the clock cannot be undone by this toggle.
+The GM can toggle **Configure Settings → Long Rest Tracker → Enable shared rest coordination**. It is on by default. Turning it off stops group windows, countdowns, and shared clock advances, cancels pending group windows, and allows D&D5e to handle time normally. Long-rest recording and cooldown checks remain available. Re-enabling starts with new group windows rather than resuming a cancelled one. An advance already submitted to the clock cannot be undone by this toggle.
 
 The separate **Coordinate group short rests** and **Coordinate group long rests** options remain available when shared coordination is enabled.
 
@@ -52,11 +66,11 @@ D&D5e 6.0.0 rest hooks and both calendars' public APIs/synchronization modes wer
 
 ### Group long rests (1.0.9)
 
-Opening the first D&D5e long-rest dialog starts a group window with the same two-minute participation prompts as a short rest. Players can confirm that they intend to rest or that they are doing something else. The party roster is captured from player-owned world characters and the initiating token actor when the window begins.
+Opening the first D&D5e long-rest dialog starts a group window with the same two-minute countdown as a short rest. Clicking a sheet rest button marks that character as taking a rest; characters who have not clicked remain awaiting a response. The party roster is captured from player-owned world characters and the initiating token actor when the window begins.
 
-**Once every character in that roster completes a long rest on their sheet, the active GM's client automatically advances the clock by eight calendar hours, once for the whole party.** There is no additional GM approval or need to wait out the countdown when everyone has finished. Opening and cancelling a dialog, or simply answering the planning prompt, does not complete a rest. Characters who need no recovery should still complete their sheet's long-rest dialog to join this advance.
+**Once every character in that roster completes a long rest on their sheet, the active GM's client automatically advances the clock by eight calendar hours, once for the whole party.** There is no additional GM approval or need to wait out the countdown when everyone has finished. Opening and cancelling a dialog, does not complete a rest. Characters who need no recovery should still complete their sheet's long-rest dialog to join this advance.
 
-If someone has not completed a long rest after two minutes, the GM sees the outstanding characters and time stays unchanged. A choice not to rest also leaves the automatic advance blocked. Players can still complete their sheet rests after the response countdown expires; the last required completion triggers the eight-hour advance. Alternatively the GM can end the group window without advancing time. This differs from short rests, whose one-hour advance always requires a GM decision.
+If someone has not completed a long rest after two minutes, the GM sees the outstanding characters and time stays unchanged. Players can still complete their sheet rests after the countdown expires; the last required completion triggers the eight-hour advance. Alternatively the GM can end the group window without advancing time. This differs from short rests, whose one-hour advance always requires a GM decision.
 
 The module suppresses D&D5e's individual long-rest time advancement while **Coordinate group long rests** is enabled. Automatic long-rest records are updated to the end of the shared eight-hour period, so the cooldown starts at the collective completion time. Disabling automatic long-rest recording leaves the group time coordination available. Other modules and manual time changes remain outside this coordination. An interrupted or failed clock update does not automatically retry; the GM must inspect the clock before dismissing the interrupted window or explicitly retrying a failed advance.
 
@@ -64,22 +78,15 @@ Run `node tests/long-rest.test.mjs` for regression coverage of waiting for the l
 
 ### Group short rests (1.0.8)
 
-With D&D5e, opening the first player-owned character's short-rest dialog starts a shared **two-minute real-time countdown**. Each player is asked what their owned characters will do:
+With D&D5e, opening the first player-owned character's short-rest dialog starts a shared **two-minute real-time countdown**. The active GM sees a compact window with two lists: characters who clicked Short Rest (**Taking a short rest**) and characters who have not (**Awaiting a response**). The initiating character immediately appears in the taking-rest list. There are no extra participation prompts or completed-rest categories. Clicking counts as joining for display purposes even if the sheet dialog is later cancelled; resource recovery still belongs to the system's rest workflow.
 
-- **Taking a short rest**, even if no resources need recovering.
-- **Not resting / doing something else**, such as studying a spellbook.
-
-Closing the choice dialog leaves the character unanswered. Choosing to rest confirms participation; it does not execute D&D5e rest mechanics or restore resources. Use the character sheet as needed. A completed sheet short rest also confirms participation, but merely opening or cancelling a sheet dialog does not. Long rests do not join this window.
-
-The designated active GM sees four lists: **Taking a short rest**, **Not resting / doing something else**, **Awaiting a response**, and **Completed a short rest within the window**. The roster includes all player-owned world characters and participating token actors; linked characters appear once. Players with several owned characters receive one choice for each. GM users receive player choices only for their assigned character. A missing response is distinct from an explicit decision not to rest.
-
-At two minutes the GM can choose **Advance 1 Hour** or **Leave Clock Unchanged**. An hour uses the active calendar. The choice remains available even if nobody needed to run recovery mechanics. Unanswered characters remain visible: they do not silently consent, and the GM decides whether to advance after reviewing the whole party. Receiving all replies does not end the countdown early. New replies and sheet rests do not extend the window. Late responses and completions are excluded from that window; take a new short rest after the GM dismisses the previous window to start another.
+At two minutes the GM can choose **Advance 1 Hour** or **Leave Clock Unchanged**. An hour uses the active calendar. Unanswered characters stay visible and the GM decides whether the party's hour passes. The countdown does not end early or extend when another character joins. The roster includes player-owned world characters and participating token actors, with linked actors deduplicated. Long rests are tracked in a separate group window.
 
 The module disables D&D5e's automatic time advancement for these short rests so individual rests do not each advance the clock. Other modules or manual clock changes are outside this control. This feature is enabled by default; disable **Coordinate group short rests** in module settings to restore the system's usual behavior. It operates independently of automatic long-rest recording.
 
-An active GM with the module enabled is required to collect events and show the prompt. Rest events and participation choices are synchronized through owned Actor flags; the shared window is stored in world settings. An existing window resumes after a GM reload or handover. A GM who was offline before the window began can recover recent events when joining within two minutes. Players can reopen their choices and the GM can reopen the current countdown or decision from **Open Tracker → Group Short Rest**. If a reload interrupts a clock update, inspect the world clock and choose **Clock Checked — Dismiss This Window** before starting another group window; the module does not automatically retry that advance.
+An active GM with the module enabled is required to collect events and show the prompt. Rest events are synchronized through owned Actor flags; the shared window is stored in world settings. An existing window resumes after a GM reload or handover. A GM who was offline before the window began can recover recent events when joining within two minutes. The GM can reopen the current countdown or decision from **Open Tracker → Group Short Rest**. If a reload interrupts a clock update, inspect the world clock and choose **Clock Checked — Dismiss This Window** before starting another group window; the module does not automatically retry that advance.
 
-Run `node tests/short-rest.test.mjs` for the group-rest regression tests. These use mocked Foundry APIs; validate separate player clients and a GM in a spare Foundry v14/D&D5e world before campaign use. Open a sheet rest on one player; have another player confirm they are resting without recovering anything and another choose a different activity. Confirm that the GM sees those choices separately from unanswered characters and completed sheet rests. Let the countdown expire and verify that only GM approval advances exactly one hour. Also check cancellation, changing a choice before expiry, declining the advance, a GM reload during the countdown, and a second GM staying free of duplicate prompts.
+Run `node tests/short-rest.test.mjs` for regression checks, including an asynchronous render, visible countdown updates, and the initiator's immediate taking-rest status. These use mocked Foundry APIs; test with separate player clients and a GM in a spare Foundry v14/D&D5e world before campaign use. Confirm the small two-list window, watch the seconds decrease, click another character's Short Rest button and check that they move between lists, then confirm the GM alone decides whether the hour passes at timeout. Also test closing/reopening the window, disabling coordination, and a GM reload during the countdown.
 
 ### Long rests
 
@@ -111,13 +118,16 @@ The old cooldown was stored on an individual macro. Set your desired cooldown on
 
 ## Validation
 
-Version **1.0.5** adds stress-test fixes: per-actor write queues, duplicate completion-result protection, submission-time permission checks, safe handling of malformed selections and missing canvas, a 24-hour fallback for invalid cooldown settings, and separate reporting of chat failures after successful saves.
+No dependencies are needed for the Node.js checks. Use Node.js 22 or newer:
 
-The automated suite includes 100,000 deterministic timing cases, 500 simulated concurrent character completions, 1,000 repeated deliveries of the same completion result, and 1,000 toolbar rebuilds. These use mocked Foundry APIs: they verify module logic, not real database throughput, DOM rendering, or multiplayer networking. Repeated events with different result objects are treated as separate completed rests. The write queue coordinates only this client; simultaneous rests on the same actor from separate clients still depend on Foundry's update ordering.
+```sh
+npm test
+npm run check
+```
 
-Five regression scenarios were reproduced against the original 1.0.4 scripts before verifying the fixes: reordered writes, misleading failure after a successful save with chat failure, stale Observer permission, stale GM cooldown dialog, and an invalid cooldown preventing the tracker from opening.
+The current suite runs 16 tests, including calendar integrations, invalid clock values, rest event collection, visible timer updates with an asynchronous dialog mock, duplicate completion events, permissions, cancelled windows, the master switch, late long rests, failed clock updates, and partial timestamp-saving failures. These use mocked Foundry APIs; they do not establish real database, multiplayer, or system/theme compatibility.
 
-Run `npm test` and `npm run check` with Node.js. Tests cover eligibility boundaries, zero/negative timestamps, rewound time, invalid records, cooldown validation, HTML escaping, settings registration, actor selection, legacy records, ownership, and private chat reports.
+An additional browser check renders the actual module HTML and CSS in Chromium with simulated Foundry services. It verifies both panes, sizes and font rules, the live countdown, participant updates, cached-setting broadcasts, a single clock advance, reconnect ordering, dismissal, and the master switch. Run `npm run test:browser` when Playwright and Chromium are available. The browser executable defaults to `/usr/bin/chromium`; set `CHROMIUM_PATH` to use another location. Playwright is an optional test tool and is not needed by the module or the Node tests. For an isolated install, run `npm install --prefix /tmp/lrt-browser-tools --no-package-lock --no-save playwright`, then `NODE_PATH=/tmp/lrt-browser-tools/node_modules CHROMIUM_PATH=/path/to/chromium npm run test:browser`.
 
 The module has not been run in an actual Foundry instance here. Before using it in a campaign, test in a spare v14 world:
 

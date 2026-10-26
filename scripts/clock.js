@@ -60,7 +60,8 @@ export function formatTimestamp(time) {
 export function prepareClockAdvance(hours) {
   if (!game.user.isGM) throw clockError("ClockGMOnly");
   const external = provider(), seconds = hoursToSeconds(hours);
-  if (!(seconds > 0)) throw clockError("ClockInvalidUnits");
+  if (!Number.isFinite(seconds) || seconds <= 0) throw clockError("ClockInvalidUnits");
+  if (!Number.isFinite(game.time.worldTime) || !Number.isFinite(game.time.worldTime + seconds)) throw clockError("ClockInvalidTime");
   if (!external) return () => game.time.advance(seconds);
   const {api, calendar} = external;
   const mode = calendar?.generalSettings?.gameWorldTimeIntegration;
@@ -69,7 +70,8 @@ export function prepareClockAdvance(hours) {
   // both APIs would advance twice. Keep all stored rest flags on world-time seconds.
   if (mode !== "self") return () => game.time.advance(seconds);
   if (typeof api.changeDate !== "function" || typeof api.timestamp !== "function") throw clockError("ClockUnavailable");
-  if (Math.abs(api.timestamp() - game.time.worldTime) > 1) throw clockError("ClockNotSynchronized");
+  const calendarTime = api.timestamp();
+  if (!Number.isFinite(calendarTime) || Math.abs(calendarTime - game.time.worldTime) > 1) throw clockError("ClockNotSynchronized");
   // Calendar-authority mode ignores external world-time changes. Its public API
   // initiates an asynchronous world-clock sync; its boolean return is not readiness.
   return () => new Promise((resolve, reject) => {

@@ -19,3 +19,20 @@
 .long-rest-tracker .lrt-waiting { background: rgba(180, 140, 60, 0.1); }
 .long-rest-tracker .lrt-remaining { font-variant-numeric: tabular-nums; line-height: 1.5; overflow-wrap: normal; }
 .long-rest-tracker .lrt-status-table th { overflow-wrap: normal; word-break: normal; }
+
+/* Compact group-rest dialogs; isolate typography from system heading styles. */
+.application.lrt-group-rest { max-width: calc(100vw - 24px); }
+.lrt-group-rest .window-content { padding: 10px; gap: 8px; }
+.lrt-group-rest .lrt-group-body { display: grid; gap: 10px; font-size: 13px; line-height: 1.35; }
+.lrt-group-rest .lrt-group-timer { margin: 0; font-size: 12px; font-weight: 400; font-variant-numeric: tabular-nums; }
+.lrt-group-rest .lrt-group-label { margin: 0; font-size: 13px; font-weight: 600; }
+.lrt-group-rest .lrt-group-body ul { margin: 0; padding: 6px 9px; list-style: none; font-size: 13px; line-height: 1.35; }
+.lrt-group-rest .lrt-group-body li { margin: 2px 0; overflow-wrap: anywhere; }
+.lrt-group-rest .lrt-group-empty { opacity: 0.65; }
+.lrt-group-rest .dialog-buttons button { min-height: 28px; font-size: 12px; }
+
+.lrt-group-rest .lrt-group-pane { border: 1px solid rgba(128, 128, 128, 0.3); border-top: 3px solid var(--lrt-pane-accent); border-radius: 5px; overflow: hidden; }
+.lrt-group-rest .lrt-group-taking { --lrt-pane-accent: #4b9b72; --lrt-pane-tint: rgba(75, 155, 114, 0.18); }
+.lrt-group-rest .lrt-group-pending { --lrt-pane-accent: #ba8737; --lrt-pane-tint: rgba(186, 135, 55, 0.18); }
+.lrt-group-rest .lrt-group-pane-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 5px 8px; background: var(--lrt-pane-tint); }
+.lrt-group-rest .lrt-group-count { min-width: 20px; padding: 1px 5px; border-radius: 8px; background: rgba(128, 128, 128, 0.15); text-align: center; font-size: 11px; font-variant-numeric: tabular-nums; }
