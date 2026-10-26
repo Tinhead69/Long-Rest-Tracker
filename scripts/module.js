@@ -1,5 +1,6 @@
-import { escapeHTML as esc, restStatus, validateCooldown, compactDuration } from "./time.js";
+import { escapeHTML as esc, restStatus, validateCooldown, compactDuration, lastRestForRemaining } from "./time.js";
 import { calendarUnits, hoursToSeconds, formatTimestamp } from "./clock.js";
+import {partyLastRest, savePartyLastRest, initializePartyRestClock} from "./party-clock.js";
 import { installShortRestTracking } from "./short-rest.js";
 
 const ID = "long-rest-tracker";
@@ -23,10 +24,6 @@ function actorsOnScene() {
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-function lastRest(actor) {
-  // Keep legacy macro records readable; the first new record takes precedence.
-  return actor.getFlag(ID, REST_FLAG) ?? actor.getFlag("world", REST_FLAG);
-}
 
 async function report(content) {
   return ChatMessage.create({ content: `<div class="long-rest-tracker">${content}</div>`, whisper: [game.user.id] });
@@ -44,7 +41,7 @@ function saveRest(actor, time) {
   return next.finally(() => { if (recordingQueues.get(key) === next) recordingQueues.delete(key); });
 }
 
-async function record(actors) {
+async function record(actors, updateParty = false) {
   const now = game.time.worldTime;
   if (!Number.isFinite(now)) throw new Error("Invalid world time.");
   const recorded = [];
@@ -60,6 +57,10 @@ async function record(actors) {
     }
   }
   if (recorded.length) {
+    if (updateParty) {
+      try { await savePartyLastRest(now); }
+      catch (error) { console.error(`${ID} | Could not save party cooldown`, error); ui.notifications.warn(t("PartyClockSaveFailed")); }
+    }
     try { await report(`<h2>${h("Recorded")}</h2><p>${timestamp(now)}</p><ul>${recorded.map(a => `<li>${esc(a.name)}</li>`).join("")}</ul>`); }
     catch (error) {
       console.error(`${ID} | Recording saved, but report failed`, error);
@@ -74,7 +75,7 @@ async function check(actors) {
   const now = game.time.worldTime;
   const seconds = hoursToSeconds(cooldown());
   const rows = actors.map(actor => {
-    const last = lastRest(actor);
+    const last = partyLastRest();
     const status = restStatus(now, last, seconds);
     let when = h("NotRecorded"), eligible = h("Unknown"), remaining = "—";
     if (status.state === "future") {
@@ -87,7 +88,7 @@ async function check(actors) {
     }
     return `<tr><td class="lrt-name"><strong>${esc(actor.name)}</strong><span class="lrt-last-rest">${when}</span></td><td><span class="lrt-badge lrt-${status.state}">${eligible}</span></td><td class="lrt-remaining">${remaining}</td></tr>`;
   }).join("");
-  await report(`<h2>${h("Status")}</h2><p class="lrt-summary">${h("CooldownSummary", { hours: cooldown() })}</p><table class="lrt-status-table"><thead><tr><th>${h("Character")}</th><th>${h("StatusShort")}</th><th>${h("ReadyIn")}</th></tr></thead><tbody>${rows}</tbody></table>`);
+  await report(`<h2>${h("Status")}</h2><p class="lrt-summary">${h("PartyStatusHint")}</p><p class="lrt-summary">${h("CooldownSummary", { hours: cooldown() })}</p><table class="lrt-status-table"><thead><tr><th>${h("Character")}</th><th>${h("StatusShort")}</th><th>${h("ReadyIn")}</th></tr></thead><tbody>${rows}</tbody></table>`);
 }
 
 function selectActors(action) {
@@ -97,13 +98,13 @@ function selectActors(action) {
   const label = action === "record" ? t("Record") : t("Check");
   return new foundry.applications.api.DialogV2({
     window: { title: label }, classes: ["long-rest-tracker"],
-    content: `<p>${h("Select")}</p>${actors.map((actor, index) => `<label class="lrt-character"><input type="checkbox" name="actor" value="${index}" checked> ${esc(actor.name)}</label>`).join("")}`,
+    content: `<p>${h(action === "record" ? "PartyRecordHint" : "PartyStatusHint")}</p><p>${h("Select")}</p>${actors.map((actor, index) => `<label class="lrt-character"><input type="checkbox" name="actor" value="${index}" checked> ${esc(actor.name)}</label>`).join("")}`,
     buttons: [{ action, label, default: true, callback: async (_event, button) => {
       if (action === "record" && !game.user.isGM) return ui.notifications.warn(t("RecordGMOnly"));
       const selected = [...new Set([...button.form.querySelectorAll('input[name="actor"]:checked')]
         .map(input => actors[Number(input.value)]).filter(actor => actor && actor.testUserPermission(game.user, "OBSERVER")))];
       if (!selected.length) return ui.notifications.warn(t("NoSelection"));
-      try { await (action === "record" ? record(selected) : check(selected)); }
+      try { await (action === "record" ? record(selected, true) : check(selected)); }
       catch (error) { console.error(`${ID} |`, error); ui.notifications.error(t("Failed")); }
     } }, { action: "cancel", label: t("Cancel") }]
   }).render({ force: true });
@@ -126,6 +127,28 @@ function setCooldown() {
   }).render({ force: true });
 }
 
+function setTimeRemaining() {
+  if (!game.user.isGM) return ui.notifications.warn(t("RemainingGMOnly"));
+  return new foundry.applications.api.DialogV2({
+    window: {title: t("SetTimeRemaining")}, classes: ["long-rest-tracker", "lrt-remaining-editor"], position: {width: 360, height: "auto"},
+    content: `<p>${h("RemainingHint")}</p><label>${h("RemainingHours")} <input type="number" name="remainingHours" min="0" max="${cooldown()}" step="any" required></label><p class="lrt-summary">${h("RemainingRange", {hours: cooldown()})}</p>`,
+    buttons: [{action: "save", label: t("Save"), default: true, callback: async (_event, button) => {
+      if (!game.user.isGM) return ui.notifications.warn(t("RemainingGMOnly"));
+      const raw = button.form.querySelector('input[name="remainingHours"]').value.trim();
+      const hours = raw === "" ? NaN : Number(raw);
+      const limit = cooldown();
+      if (!Number.isFinite(hours) || hours < 0 || hours > limit) return ui.notifications.error(t("RemainingRange", {hours: limit}));
+      try {
+        const time = lastRestForRemaining(game.time.worldTime, hoursToSeconds(limit), hoursToSeconds(hours));
+        await savePartyLastRest(time);
+      } catch (error) { console.error(`${ID} | Could not set party cooldown`, error); return ui.notifications.error(t("RemainingFailed")); }
+      ui.notifications.info(t("RemainingSaved", {hours}));
+      try { await report(`<h2>${h("SetTimeRemaining")}</h2><p>${h("RemainingSaved", {hours})}</p>`); }
+      catch (error) { console.error(`${ID} | Correction saved but report failed`, error); ui.notifications.warn(t("ReportFailed")); }
+    }}, {action: "cancel", label: t("Cancel")}]
+  }).render({force: true});
+}
+
 function openTracker() {
   return new foundry.applications.api.DialogV2({
     window: { title: t("Title") },
@@ -135,7 +158,7 @@ function openTracker() {
       { action: "check", label: t("Check"), default: true, callback: () => selectActors("check") },
       ...(game.settings.get(ID, "restCoordination") && game.settings.get(ID, "groupShortRest") ? [{ action: "shortRest", label: t("ShortRestTitle"), callback: () => shortRests.refresh() }] : []),
       ...(game.settings.get(ID, "restCoordination") && game.settings.get(ID, "groupLongRest") ? [{ action: "longRest", label: t("LongRestTitle"), callback: () => longRests.refresh() }] : []),
-      ...(game.user.isGM ? [{ action: "cooldown", label: t("SetCooldown"), callback: setCooldown }] : []),
+      ...(game.user.isGM ? [{ action: "remaining", label: t("SetTimeRemaining"), callback: setTimeRemaining }, { action: "cooldown", label: t("SetCooldown"), callback: setCooldown }] : []),
       { action: "close", label: t("Close") }
     ]
   }).render({ force: true });
@@ -163,6 +186,10 @@ Hooks.on("getSceneControlButtons", controls => {
       cooldown: {
         name: "cooldown", title: "LRT.SetCooldown", icon: "fa-solid fa-hourglass-half", order: 1,
         button: true, visible: game.user.isGM, onChange: toolClick("cooldown", setCooldown)
+      },
+      remaining: {
+        name: "remaining", title: "LRT.SetTimeRemaining", icon: "fa-solid fa-clock-rotate-left", order: 3,
+        button: true, visible: game.user.isGM, onChange: toolClick("remaining", setTimeRemaining)
       },
       check: {
         name: "check", title: "LRT.Check", icon: "fa-solid fa-list-check", order: 2,
@@ -202,7 +229,15 @@ Hooks.on("dnd5e.restCompleted", async (actor, result, config) => {
   }
 });
 
+Hooks.once("ready", () => {
+  void initializePartyRestClock().catch(error => {
+    console.error(`${ID} | Could not initialize party cooldown`, error);
+    ui.notifications.warn(t("PartyClockSaveFailed"));
+  });
+});
+
 Hooks.once("init", () => {
+  game.settings.register(ID, "partyRestClock", {scope: "world", config: false, type: Object, default: {}});
   game.settings.register(ID, "restCoordination", {
     name: "LRT.RestCoordination", hint: "LRT.RestCoordinationHint", scope: "world", config: true,
     type: Boolean, default: true, onChange: () => { void shortRests.changed(); void longRests.changed(); }

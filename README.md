@@ -28,6 +28,18 @@ The download URL points to GitHub's ZIP of the `main` branch, so installations u
 
 ## Use
 
+### One party cooldown (1.0.18)
+
+All characters now share **one long-rest cooldown per world**. **Set Party Time Remaining** in the GM's left-hand submenu edits that single timer, with no character selector. Set 0 to make the party eligible now, or enter calendar hours up to the configured cooldown. The world clock and individual history records stay unchanged. Every character's status report uses the same party timer, including characters added later or whose ownership changes.
+
+A completed collective long rest resets the party timer to the end of its eight-hour world-clock advance, even if individual automatic recording is disabled. The GM's manual **Record Long Rest** action also resets the party cooldown; its selected characters receive individual history entries. Individual sheet completions still record character history but do not separately restart the shared cooldown before the group finishes. If group coordination is disabled, use the GM's manual record or remaining-time control for the party cooldown.
+
+On first upgrade, the active GM initializes the party timer from the most recent valid existing character rest record, including legacy macro records. Individual flags are preserved. Once initialized, later character additions or reloads do not overwrite the shared timer. If no prior record exists, the cooldown shows Unknown until a group rest, GM recording, or GM correction initializes it.
+
+### Remaining cooldown control
+
+The GM can use **Set Party Time Remaining** in the left-hand clock submenu or tracker window. For example, 6.5 means six and a half calendar hours; 0 makes everyone eligible immediately. This edits the eligibility cooldown, not the two-minute group countdown. GM permissions are checked again when the save runs, and a private GM report confirms the correction.
+
 ### End a countdown early (1.0.16)
 
 The active GM can click **End Countdown Now** on either rest tab. This skips the remaining real-time wait and opens that rest's usual next step, without changing world time or treating unanswered characters as confirmed. For short rests, choose **Advance 1 Hour** or **Leave Clock Unchanged**. For long rests, missing completions still block the eight-hour advance. The ended countdown is saved and remains ended after a GM reconnect; late confirmations continue to update the pending list.
@@ -137,9 +149,9 @@ npm test
 npm run check
 ```
 
-The current suite runs 18 tests, including calendar integrations, invalid clock values, rest event collection, visible timer updates with an asynchronous dialog mock, duplicate completion events, permissions, cancelled windows, the master switch, late long rests, failed clock updates, and partial timestamp-saving failures. These use mocked Foundry APIs; they do not establish real database, multiplayer, or system/theme compatibility.
+The current suite runs 22 tests, including calendar integrations, invalid clock values, rest event collection, visible timer updates with an asynchronous dialog mock, duplicate completion events, permissions, cancelled windows, the master switch, late long rests, failed clock updates, and partial timestamp-saving failures. These use mocked Foundry APIs; they do not establish real database, multiplayer, or system/theme compatibility.
 
-An additional browser check renders the actual module HTML and CSS in Chromium with simulated Foundry services. It verifies both panes, sizes and font rules, the live countdown, participant confirmations, one persistent window with short/long tabs, ownership changes, cached-setting broadcasts, a single clock advance, reconnect ordering, dismissal, and the master switch. Run `npm run test:browser` when Playwright and Chromium are available. The browser executable defaults to `/usr/bin/chromium`; set `CHROMIUM_PATH` to use another location. Playwright is an optional test tool and is not needed by the module or the Node tests. For an isolated install, run `npm install --prefix /tmp/lrt-browser-tools --no-package-lock --no-save playwright`, then `NODE_PATH=/tmp/lrt-browser-tools/node_modules CHROMIUM_PATH=/path/to/chromium npm run test:browser`.
+An additional browser check renders the actual module HTML and CSS in Chromium with simulated Foundry services. It verifies the GM cooldown editor, both panes, sizes and font rules, the live countdown, participant confirmations, one persistent window with short/long tabs, ownership changes, cached-setting broadcasts, a single clock advance, reconnect ordering, dismissal, and the master switch. Run `npm run test:browser` when Playwright and Chromium are available. The browser executable defaults to `/usr/bin/chromium`; set `CHROMIUM_PATH` to use another location. Playwright is an optional test tool and is not needed by the module or the Node tests. For an isolated install, run `npm install --prefix /tmp/lrt-browser-tools --no-package-lock --no-save playwright`, then `NODE_PATH=/tmp/lrt-browser-tools/node_modules CHROMIUM_PATH=/path/to/chromium npm run test:browser`.
 
 The module has not been run in an actual Foundry instance here. Before using it in a campaign, test in a spare v14 world:
 

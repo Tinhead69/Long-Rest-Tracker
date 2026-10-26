@@ -1,5 +1,6 @@
 import { escapeHTML as esc } from "./time.js";
 import {groupRestWindow} from "./group-window.js";
+import {savePartyLastRest} from "./party-clock.js";
 import { prepareClockAdvance } from "./clock.js";
 
 const ID = "long-rest-tracker";
@@ -210,6 +211,10 @@ export function installShortRestTracking({type = "short", hours = 1} = {}) {
     }
     const finishedAt = game.time.worldTime;
     await save({...current, status: "done"});
+    if (isLong) {
+      try { await savePartyLastRest(finishedAt); }
+      catch (error) { console.error(`${ID} | Clock advanced but party cooldown was not saved`, error); ui.notifications.warn(t("PartyClockSaveFailed")); }
+    }
     if (isLong && game.settings.get(ID, "autoRecord")) {
       // Completion events are published after the existing recording write finishes.
       // Stamp the end of the shared eight-hour rest after advancing the clock.

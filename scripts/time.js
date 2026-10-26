@@ -25,3 +25,11 @@ export function compactDuration(seconds, { day, hour, minute }, labels) {
   }
   return parts.join(" ") || (seconds > 0 ? `<1${labels.minute}` : `0${labels.minute}`);
 }
+
+export function lastRestForRemaining(now, cooldownSeconds, remainingSeconds) {
+  if (![now, cooldownSeconds, remainingSeconds].every(Number.isFinite) || cooldownSeconds < 0
+    || remainingSeconds < 0 || remainingSeconds > cooldownSeconds) throw new Error("Invalid remaining cooldown.");
+  const value = now - (cooldownSeconds - remainingSeconds);
+  if (!Number.isFinite(value)) throw new Error("Invalid remaining cooldown.");
+  return value;
+}

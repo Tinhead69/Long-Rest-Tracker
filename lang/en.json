@@ -41,7 +41,7 @@
   "LRT.CooldownSaved": "Long rest cooldown set to {hours} calendar hours.",
   "LRT.InvalidCooldown": "Enter a finite, non-negative number of hours.",
   "LRT.WorldTime": "World time: {time}",
-  "LRT.CooldownSummary": "Cooldown: {hours} calendar hours",
+  "LRT.CooldownSummary": "Party cooldown: {hours} calendar hours",
   "LRT.Intro": "Record completed rests or check player characters on the current scene.",
   "LRT.SettingName": "Long rest cooldown (calendar hours)",
   "LRT.SettingHint": "Minimum calendar hours between completed long rests. Only the GM can change this world setting.",
@@ -95,5 +95,15 @@
   "LRT.GroupRestTitle": "Group Rest",
   "LRT.GroupShortTab": "Short rest",
   "LRT.GroupLongTab": "Long rest",
-  "LRT.EndCountdownNow": "End Countdown Now"
+  "LRT.EndCountdownNow": "End Countdown Now",
+  "LRT.SetTimeRemaining": "Set Party Time Remaining",
+  "LRT.RemainingGMOnly": "Only the GM can change the party\u2019s remaining long-rest cooldown.",
+  "LRT.RemainingHint": "Set the shared cooldown for the whole party. Enter 0 to make everyone eligible now. This does not change the world clock or individual rest history.",
+  "LRT.RemainingHours": "Party hours remaining",
+  "LRT.RemainingRange": "Enter a number from 0 to {hours} calendar hours. Decimals are allowed; 6.5 means six and a half calendar hours.",
+  "LRT.RemainingFailed": "The party cooldown could not be saved. Check your GM permissions and clock settings.",
+  "LRT.RemainingSaved": "The whole party has {hours} calendar hours remaining until the next long rest is eligible.",
+  "LRT.PartyRecordHint": "Recording a long rest here resets the shared party cooldown for everyone. Selected characters also receive individual history records.",
+  "LRT.PartyClockSaveFailed": "The party cooldown could not be saved. Use Set Party Time Remaining to correct it; do not advance the world clock again.",
+  "LRT.PartyStatusHint": "Eligibility and time remaining use the same party cooldown for every character; individual rest history may differ."
 }

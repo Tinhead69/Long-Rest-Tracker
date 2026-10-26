@@ -43,3 +43,5 @@
 .lrt-group-rest .lrt-group-actions { display: flex; gap: 6px; margin-top: 8px; }
 .lrt-group-rest .lrt-group-actions:empty { display: none; }
 .lrt-group-rest .lrt-group-actions button { flex: 1; min-height: 28px; font-size: 12px; }
+
+.lrt-remaining-editor .window-content { font-size: 13px; }
